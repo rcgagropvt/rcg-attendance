@@ -195,22 +195,30 @@
   function camStop(){ if(stream){stream.getTracks().forEach(function(t){t.stop();}); vid.srcObject=null; stream=null;} }
 
   // ── LOAD FACES ────────────────────────────────────
-  function loadFaces(){
-    return fetch(API+'?action=getEnrolledFaces&code='+encodeURIComponent(QR_CODE),{redirect:'follow'})
-      .then(function(r){return r.json();})
-      .then(function(j){
-        if(j.success && j.users && j.users.length){
-          users=j.users;
-          var labeled=users.map(function(u){
-            var d=u.faceDescriptors.map(function(a){return Array.isArray(a)?new Float32Array(a):a;});
-            return new faceapi.LabeledFaceDescriptors(u.id,d);
-          });
-          matcher=new faceapi.FaceMatcher(labeled,THRESH);
-          console.log('Matcher: '+labeled.length+' users');
-        }
-      }).catch(function(e){console.error('loadFaces:',e);});
+    function loadFaces(){
+    return fetch(API,{
+      method:'POST',
+      body:JSON.stringify({
+        type:'get_enrolled_faces',
+        qrCode: QR_CODE
+      }),
+      redirect:'follow'
+    })
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(j.success && j.users && j.users.length){
+        users=j.users;
+        var labeled=users.map(function(u){
+          var d=u.faceDescriptors.map(function(a){return Array.isArray(a)?new Float32Array(a):a;});
+          return new faceapi.LabeledFaceDescriptors(u.id,d);
+        });
+        matcher=new faceapi.FaceMatcher(labeled,THRESH);
+        console.log('Matcher: '+labeled.length+' users');
+      } else {
+        console.log('No enrolled faces found:', j);
+      }
+    }).catch(function(e){console.error('loadFaces:',e);});
   }
-
   // ── INIT ──────────────────────────────────────────
   window.addEventListener('DOMContentLoaded',function(){
     vid=document.getElementById('vid');
