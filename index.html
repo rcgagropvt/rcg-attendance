@@ -309,16 +309,26 @@
     sBar('Sending attendance...','s-load');
     document.getElementById('startBtn').disabled=true;
 
-    // Capture photo
     var pc=document.createElement('canvas');pc.width=320;pc.height=240;
     pc.getContext('2d').drawImage(vid,0,0,320,240);
     var photo=pc.toDataURL('image/jpeg',0.5);
+
+    var descArray = Array.prototype.slice.call(desc);
+    console.log('=== SENDING ATTENDANCE ===');
+    console.log('API URL:', API);
+    console.log('QR_CODE:', QR_CODE);
+    console.log('MODE:', MODE);
+    console.log('Employee:', user.id, user.name);
+    console.log('Descriptor length:', descArray.length);
+    console.log('Descriptor first 5:', descArray.slice(0,5));
+    console.log('GPS:', gps);
+    console.log('Confidence:', conf);
 
     var payload={
       type:'face_attendance',
       code:QR_CODE, qrCode:QR_CODE, mode:MODE,
       employeeId:user.id, employeeName:user.name,
-      faceDescriptor:Array.prototype.slice.call(desc),
+      faceDescriptor:descArray,
       faceScore:conf,
       latitude:gps?gps.lat:null, longitude:gps?gps.lon:null,
       gpsAccuracy:gps?gps.acc:null,
@@ -326,11 +336,19 @@
       timestamp:new Date().toISOString()
     };
 
+    console.log('Payload type:', payload.type);
+    console.log('Payload code:', payload.code);
+    console.log('Payload size:', JSON.stringify(payload).length, 'bytes');
+
     fetch(API,{method:'POST',body:JSON.stringify(payload),redirect:'follow'})
-      .then(function(r){return r.json();})
+      .then(function(r){
+        console.log('Response status:', r.status);
+        return r.json();
+      })
       .then(function(j){
+        console.log('=== RESPONSE ===', JSON.stringify(j).substring(0, 500));
         if(j.success){
-          var action=(j.data&&j.data.type)||'Clock In';
+          var action=(j.data&&j.data.type)||(j.action)||'Clock In';
           document.getElementById('eAction').textContent=action;
           sBar(action+' successful!','s-ok');
           showOk(action,user.name);
@@ -343,16 +361,19 @@
             sBar('Ready — tap Start','s-detect'); resetBadges();
           },7000);
         } else {
+          console.error('FAILED:', j.error, j.code, j);
           sBar('Failed: '+(j.error||j.message||'Unknown'),'s-err');
           document.getElementById('eAction').textContent='Failed';
           busy=false; document.getElementById('startBtn').disabled=false;
         }
       })
       .catch(function(e){
+        console.error('FETCH ERROR:', e);
         sBar('Network error: '+e.message,'s-err');
         busy=false; document.getElementById('startBtn').disabled=false;
       });
   }
+
 
   // ── SUCCESS OVERLAY ───────────────────────────────
   function showOk(action,name){
