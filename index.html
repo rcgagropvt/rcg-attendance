@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#004D40">
+  <title>RCG Attendance</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #006a61; --accent: #FFD800; --success: #00C851;
+      --danger: #FF5722; --neutral: #78909C; --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: linear-gradient(135deg, #E0F2F1 0%, #F1F8E9 100%);
+      min-height: 100vh; color: #212121;
+    }
+    .header {
+      background: var(--primary); color: white; padding: 12px 20px;
+      display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 4px 20px rgba(0,77,64,0.3);
+    }
+    .header h1 { font-size: 1.1rem; }
+    .clock { font-size: 1.3rem; font-weight: 700; }
+    .date-text { font-size: 0.75rem; opacity: 0.9; }
+    .container { max-width: 560px; margin: 16px auto; padding: 0 12px; }
+    .card {
+      background: rgba(255,255,255,0.95); border-radius: 16px;
+      padding: 16px; box-shadow: 0 8px 32px rgba(0,77,64,0.15);
+      margin-bottom: 14px;
+    }
+    .video-wrap {
+      position: relative; width: 100%; height: 300px;
+      border-radius: var(--radius); overflow: hidden; background: #111; margin-bottom: 12px;
+    }
+    .video-wrap video, .video-wrap canvas {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;
+    }
+    .status-bar {
+      padding: 10px; border-radius: var(--radius); text-align: center;
+      font-weight: 600; font-size: 0.88rem; margin-bottom: 10px;
+    }
+    .s-load { background: #FFF3E0; color: #E65100; }
+    .s-detect { background: #E3F2FD; color: #1565C0; }
+    .s-match { background: #E8F5E9; color: #2E7D32; }
+    .s-err { background: #FFEBEE; color: #C62828; }
+    .s-ok { background: #E8F5E9; color: #2E7D32; }
+    .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+    .chk {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 10px; background: rgba(0,77,64,0.04); border-radius: 8px; font-size: 0.8rem;
+    }
+    .chk-label { font-weight: 600; color: var(--primary); }
+    .badge {
+      padding: 2px 8px; border-radius: 16px; font-size: 0.7rem; font-weight: 600;
+      min-width: 60px; text-align: center;
+    }
+    .b-wait { background: #F5F5F5; color: var(--neutral); }
+    .b-ok { background: #E8F5E9; color: #2E7D32; }
+    .b-fail { background: #FFEBEE; color: #C62828; }
+    .b-pend { background: #FFF8E1; color: #F57C00; }
+    .emp-card { display: none; }
+    .emp-card.show { display: block; }
+    .info-row {
+      display: flex; justify-content: space-between; padding: 6px 0;
+      border-bottom: 1px solid rgba(0,77,64,0.08); font-size: 0.85rem;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .btn {
+      width: 100%; padding: 12px; border: none; border-radius: var(--radius);
+      background: var(--primary); color: white; font-weight: 600;
+      font-size: 0.95rem; cursor: pointer;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .overlay-success {
+      position: fixed; inset: 0; background: linear-gradient(135deg, rgba(0,77,64,0.96), rgba(0,105,92,0.96));
+      display: none; flex-direction: column; justify-content: center; align-items: center;
+      z-index: 9999; color: white;
+    }
+    .overlay-success.show { display: flex; }
+    .ok-icon {
+      width: 100px; height: 100px; border-radius: 50%; background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 50px; color: var(--primary); margin-bottom: 20px;
+    }
+    .overlay-success h1 { font-size: 1.8rem; margin-bottom: 6px; }
+    .overlay-success p { font-size: 1rem; opacity: 0.9; }
+    .ok-time { margin-top: 14px; background: rgba(255,255,255,0.12); padding: 10px 20px; border-radius: var(--radius); }
+    @media(max-width:480px) { .checks { grid-template-columns: 1fr; } .video-wrap { height: 250px; } }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1><i class="bi bi-person-bounding-box"></i> RCG Attendance</h1>
+    <div class="date-text" id="dateDisp"></div>
+  </div>
+  <div style="text-align:right"><div class="clock" id="clockDisp">--:--:--</div></div>
+</div>
+
+<div class="container">
+  <div class="card">
+    <div class="video-wrap">
+      <video id="vid" autoplay muted playsinline></video>
+      <canvas id="cvs"></canvas>
+    </div>
+    <div id="sBar" class="status-bar s-load">Initializing...</div>
+    <button id="startBtn" class="btn" onclick="begin()" disabled>
+      <i class="bi bi-camera-video"></i> Start Verification
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="checks">
+      <div class="chk"><span class="chk-label">Face</span><span class="badge b-wait" id="bFace">Wait</span></div>
+      <div class="chk"><span class="chk-label">Liveness</span><span class="badge b-wait" id="bLive">Wait</span></div>
+      <div class="chk"><span class="chk-label">Identity</span><span class="badge b-wait" id="bId">Wait</span></div>
+      <div class="chk"><span class="chk-label">GPS</span><span class="badge b-wait" id="bGps">Wait</span></div>
+    </div>
+  </div>
+
+  <div class="card emp-card" id="empCard">
+    <div class="info-row"><b>Employee</b><span id="eName">-</span></div>
+    <div class="info-row"><b>ID</b><span id="eId">-</span></div>
+    <div class="info-row"><b>Action</b><span id="eAction" style="font-weight:700;color:var(--primary)">-</span></div>
+  </div>
+</div>
+
+<div class="overlay-success" id="okOverlay">
+  <div class="ok-icon"><i class="bi bi-check-lg"></i></div>
+  <h1 id="okTitle">Success!</h1>
+  <p id="okMsg"></p>
+  <div class="ok-time" id="okTime"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+(function(){
+  // ── CONFIG ────────────────────────────────────────
+  var API = 'https://script.google.com/macros/s/AKfycbzz1kMPcBrJHQI7ez4xswE52mexB4o8TY9p7tph0jS0eUf1AkPSsOZkOdMxMdU9e04q/exec';
+  var MODELS = 'https://justadudewhohacks.github.io/face-api.js/models/';
+  var THRESH = 0.6, MIN_FACE = 110, DET_MS = 150;
+
+  var params = new URLSearchParams(location.search);
+  var QR_CODE = params.get('code') || '';
+  var MODE    = params.get('mode') || 'qr';
+
+  // ── STATE ─────────────────────────────────────────
+  var vid, cvs, ctx, stream;
+  var matcher = null, users = [];
+  var running = false, busy = false, timer = null;
+  var gps = null, matched = null;
+
+  // ── CLOCK ─────────────────────────────────────────
+  function tick(){
+    var n = new Date();
+    document.getElementById('clockDisp').textContent =
+      n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+    document.getElementById('dateDisp').textContent =
+      n.toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  }
+  setInterval(tick,1000); tick();
+
+  // ── HELPERS ───────────────────────────────────────
+  function sBar(t,c){ var e=document.getElementById('sBar'); e.textContent=t; e.className='status-bar '+(c||'s-load'); }
+  function setBadge(id,t,c){ var e=document.getElementById(id); e.textContent=t; e.className='badge '+(c||'b-wait'); }
+  function deviceId(){
+    var s=[navigator.userAgent,navigator.language,screen.width+'x'+screen.height,screen.colorDepth,new Date().getTimezoneOffset()].join('|');
+    var h=0; for(var i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h=h&h;} return Math.abs(h).toString(36);
+  }
+
+  // ── GPS ───────────────────────────────────────────
+  function getGps(){
+    if(!navigator.geolocation){setBadge('bGps','N/A','b-fail');return;}
+    setBadge('bGps','Getting...','b-pend');
+    navigator.geolocation.getCurrentPosition(
+      function(p){gps={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};setBadge('bGps','OK','b-ok');},
+      function(){setBadge('bGps','Denied','b-fail');},
+      {enableHighAccuracy:true,timeout:15000,maximumAge:60000}
+    );
+  }
+
+  // ── CAMERA ────────────────────────────────────────
+  function camStart(){
+    return navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'}})
+      .then(function(s){
+        stream=s; vid.srcObject=s;
+        return new Promise(function(ok){vid.onloadedmetadata=function(){vid.play().then(function(){cvs.width=vid.videoWidth;cvs.height=vid.videoHeight;ok();});};});
+      });
+  }
+  function camStop(){ if(stream){stream.getTracks().forEach(function(t){t.stop();}); vid.srcObject=null; stream=null;} }
+
+  // ── LOAD FACES ────────────────────────────────────
+  function loadFaces(){
+    return fetch(API+'?action=getEnrolledFaces&code='+encodeURIComponent(QR_CODE),{redirect:'follow'})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(j.success && j.users && j.users.length){
+          users=j.users;
+          var labeled=users.map(function(u){
+            var d=u.faceDescriptors.map(function(a){return Array.isArray(a)?new Float32Array(a):a;});
+            return new faceapi.LabeledFaceDescriptors(u.id,d);
+          });
+          matcher=new faceapi.FaceMatcher(labeled,THRESH);
+          console.log('Matcher: '+labeled.length+' users');
+        }
+      }).catch(function(e){console.error('loadFaces:',e);});
+  }
+
+  // ── INIT ──────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded',function(){
+    vid=document.getElementById('vid');
+    cvs=document.getElementById('cvs');
+    ctx=cvs.getContext('2d');
+
+    sBar('Loading models...','s-load');
+    Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODELS),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODELS),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODELS)
+    ]).then(function(){
+      sBar('Loading face data...','s-load');
+      return loadFaces();
+    }).then(function(){
+      getGps();
+      sBar('Ready — tap Start','s-detect');
+      document.getElementById('startBtn').disabled=false;
+    }).catch(function(e){sBar('Error: '+e.message,'s-err');});
+  });
+
+  // ── START / STOP ──────────────────────────────────
+  window.begin = function(){
+    if(running){stopAll();return;}
+    document.getElementById('startBtn').textContent='Stop';
+    resetBadges(); matched=null; busy=false;
+    sBar('Starting camera...','s-load');
+    camStart().then(function(){running=true;sBar('Looking for face...','s-detect');loop();})
+      .catch(function(e){sBar('Camera error: '+e.message,'s-err');});
+  };
+
+  function stopAll(){
+    running=false; if(timer){clearTimeout(timer);timer=null;}
+    camStop(); ctx.clearRect(0,0,cvs.width,cvs.height);
+    document.getElementById('startBtn').textContent='Start Verification';
+    document.getElementById('startBtn').disabled=false;
+    document.getElementById('empCard').classList.remove('show');
+    sBar('Stopped','s-detect'); resetBadges();
+  }
+
+  function resetBadges(){
+    setBadge('bFace','Wait','b-wait');setBadge('bLive','Wait','b-wait');setBadge('bId','Wait','b-wait');
+  }
+
+  // ── DETECTION LOOP ────────────────────────────────
+  function loop(){
+    if(!running||!vid||vid.paused||!vid.videoWidth)return;
+    var opts=new faceapi.TinyFaceDetectorOptions({scoreThreshold:0.3,inputSize:320});
+    faceapi.detectAllFaces(vid,opts).withFaceLandmarks().withFaceDescriptors().then(function(dets){
+      ctx.clearRect(0,0,cvs.width,cvs.height);
+      if(dets.length){
+        dets.sort(function(a,b){return(b.detection.box.width*b.detection.box.height)-(a.detection.box.width*a.detection.box.height);});
+        var d=dets[0],b=d.detection.box;
+        ctx.strokeStyle='#00FF00';ctx.lineWidth=3;ctx.strokeRect(b.x,b.y,b.width,b.height);
+        if(b.width>=MIN_FACE){
+          setBadge('bFace','Detected','b-ok'); setBadge('bLive','OK','b-ok');
+          sBar('Identifying...','s-detect');
+          if(matcher&&!busy)recognize(d.descriptor);
+        } else { setBadge('bFace','Too small','b-pend'); sBar('Move closer','s-load'); }
+      } else { setBadge('bFace','No face','b-pend'); sBar('Looking...','s-detect'); }
+      if(running)timer=setTimeout(loop,DET_MS);
+    }).catch(function(e){console.error(e);if(running)timer=setTimeout(loop,DET_MS);});
+  }
+
+  // ── RECOGNIZE ─────────────────────────────────────
+  function recognize(desc){
+    if(!matcher)return;
+    try{
+      var r=matcher.findBestMatch(desc), conf=Math.round((1-r.distance)*100);
+      if(r.label!=='unknown'&&conf>=55){
+        var u=null; for(var i=0;i<users.length;i++){if(users[i].id===r.label){u=users[i];break;}}
+        if(u){
+          matched=u;
+          setBadge('bId',u.name.split(' ')[0]+' '+conf+'%','b-ok');
+          sBar('Recognized: '+u.name+' ('+conf+'%)','s-match');
+          document.getElementById('empCard').classList.add('show');
+          document.getElementById('eName').textContent=u.name;
+          document.getElementById('eId').textContent=u.id;
+          document.getElementById('eAction').textContent='Processing...';
+          if(!busy){busy=true;sendAttendance(u,desc,conf);}
+        }
+      } else { setBadge('bId','Unknown '+conf+'%','b-fail'); }
+    }catch(e){setBadge('bId','Error','b-fail');}
+  }
+
+  // ── SEND ATTENDANCE ───────────────────────────────
+  function sendAttendance(user,desc,conf){
+    sBar('Sending attendance...','s-load');
+    document.getElementById('startBtn').disabled=true;
+
+    // Capture photo
+    var pc=document.createElement('canvas');pc.width=320;pc.height=240;
+    pc.getContext('2d').drawImage(vid,0,0,320,240);
+    var photo=pc.toDataURL('image/jpeg',0.5);
+
+    var payload={
+      type:'face_attendance',
+      qrCode:QR_CODE, mode:MODE,
+      employeeId:user.id, employeeName:user.name,
+      faceDescriptor:Array.prototype.slice.call(desc),
+      faceScore:conf,
+      latitude:gps?gps.lat:null, longitude:gps?gps.lon:null,
+      gpsAccuracy:gps?gps.acc:null,
+      deviceId:deviceId(), photo:photo,
+      timestamp:new Date().toISOString()
+    };
+
+    fetch(API,{method:'POST',body:JSON.stringify(payload),redirect:'follow'})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(j.success){
+          var action=(j.data&&j.data.type)||'Clock In';
+          document.getElementById('eAction').textContent=action;
+          sBar(action+' successful!','s-ok');
+          showOk(action,user.name);
+          setTimeout(function(){running=false;if(timer)clearTimeout(timer);camStop();},1000);
+          setTimeout(function(){
+            hideOk(); busy=false; matched=null;
+            document.getElementById('empCard').classList.remove('show');
+            document.getElementById('startBtn').textContent='Start Verification';
+            document.getElementById('startBtn').disabled=false;
+            sBar('Ready — tap Start','s-detect'); resetBadges();
+          },7000);
+        } else {
+          sBar('Failed: '+(j.error||j.message||'Unknown'),'s-err');
+          document.getElementById('eAction').textContent='Failed';
+          busy=false; document.getElementById('startBtn').disabled=false;
+        }
+      })
+      .catch(function(e){
+        sBar('Network error: '+e.message,'s-err');
+        busy=false; document.getElementById('startBtn').disabled=false;
+      });
+  }
+
+  // ── SUCCESS OVERLAY ───────────────────────────────
+  function showOk(action,name){
+    document.getElementById('okTitle').textContent=action+' Successful!';
+    document.getElementById('okMsg').textContent='Welcome, '+name;
+    document.getElementById('okTime').textContent=new Date().toLocaleString('en-IN');
+    document.getElementById('okOverlay').classList.add('show');
+  }
+  function hideOk(){document.getElementById('okOverlay').classList.remove('show');}
+
+})();
+</script>
+</body>
+</html>
